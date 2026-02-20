@@ -1,0 +1,1116 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "VyOS API",
+    "description": "REST proxy for one or more VyOS router devices. Exposes CRUD operations over interfaces, VRFs, VLANs, firewall policies, and firewall address groups. Each device is identified by the name supplied in the VYOS_HOSTS environment variable.",
+    "version": "0.1.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8082",
+      "description": "Local development"
+    }
+  ],
+  "tags": [
+    { "name": "service",        "description": "Service health and device discovery" },
+    { "name": "networks",       "description": "Layer-3 interfaces (ethernet, loopback, bonding, …)" },
+    { "name": "vrfs",           "description": "Virtual routing and forwarding instances" },
+    { "name": "vlans",          "description": "802.1Q vif subinterfaces" },
+    { "name": "firewall",       "description": "IPv4 firewall policies and rules" },
+    { "name": "address-groups", "description": "Firewall address group objects" }
+  ],
+  "paths": {
+
+    "/health": {
+      "get": {
+        "tags": ["service"],
+        "summary": "Health check",
+        "description": "Returns `{\"status\":\"ok\"}` when the service is running. Used as the container health probe.",
+        "operationId": "getHealth",
+        "responses": {
+          "200": {
+            "description": "Service is healthy",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HealthResponse" },
+                "example": { "status": "ok" }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "/devices": {
+      "get": {
+        "tags": ["service"],
+        "summary": "List registered devices",
+        "description": "Returns every VyOS device registered via VYOS_HOSTS, with a live connectivity probe result for each.",
+        "operationId": "listDevices",
+        "responses": {
+          "200": {
+            "description": "Device list (healthy=false if the device is unreachable)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/DeviceInfo" }
+                },
+                "example": [
+                  { "id": "router1", "url": "https://192.168.1.1:443", "healthy": true },
+                  { "id": "router2", "url": "https://10.0.0.1:8443",  "healthy": false }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "/devices/{device_id}/networks": {
+      "parameters": [
+        { "$ref": "#/components/parameters/device_id" }
+      ],
+      "get": {
+        "tags": ["networks"],
+        "summary": "List all interfaces",
+        "description": "Retrieves the full `interfaces` config tree and returns every interface of every type with its IPv4 addresses.",
+        "operationId": "listNetworks",
+        "responses": {
+          "200": {
+            "description": "Interface list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/NetworkInfo" }
+                }
+              }
+            }
+          },
+          "404": { "$ref": "#/components/responses/DeviceNotFound" },
+          "422": { "$ref": "#/components/responses/DeviceRejected" },
+          "502": { "$ref": "#/components/responses/DeviceError" }
+        }
+      },
+      "post": {
+        "tags": ["networks"],
+        "summary": "Set an interface address",
+        "description": "Adds an IPv4 address (CIDR notation) to the specified interface, creating the interface config node if it does not exist.",
+        "operationId": "createNetwork",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateNetworkRequest" },
+              "example": {
+                "interface": "eth0",
+                "type": "ethernet",
+                "address": "192.168.1.1/24",
+                "description": "LAN"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Interface address set",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/NetworkInfo" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/DeviceNotFound" },
+          "422": { "$ref": "#/components/responses/DeviceRejected" },
+          "502": { "$ref": "#/components/responses/DeviceError" }
+        }
+      }
+    },
+
+    "/devices/{device_id}/networks/{interface}": {
+      "parameters": [
+        { "$ref": "#/components/parameters/device_id" },
+        { "$ref": "#/components/parameters/interface" },
+        { "$ref": "#/components/parameters/iface_type_query" }
+      ],
+      "get": {
+        "tags": ["networks"],
+        "summary": "Get an interface",
+        "description": "Retrieves the config for a single interface. Use the `type` query parameter when the interface is not ethernet.",
+        "operationId": "getNetwork",
+        "responses": {
+          "200": {
+            "description": "Interface details",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/NetworkInfo" }
+              }
+            }
+          },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "502": { "$ref": "#/components/responses/DeviceError" }
+        }
+      },
+      "put": {
+        "tags": ["networks"],
+        "summary": "Replace interface address",
+        "description": "Deletes all existing addresses on the interface and sets the new one. `type` must be provided in the request body.",
+        "operationId": "updateNetwork",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateNetworkRequest" },
+              "example": {
+                "type": "ethernet",
+                "address": "10.0.0.1/24",
+                "description": "uplink"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Interface updated",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/NetworkInfo" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/DeviceNotFound" },
+          "422": { "$ref": "#/components/responses/DeviceRejected" },
+          "502": { "$ref": "#/components/responses/DeviceError" }
+        }
+      },
+      "delete": {
+        "tags": ["networks"],
+        "summary": "Delete an interface",
+        "description": "Deletes the entire interface config node. Defaults to `type=ethernet`.",
+        "operationId": "deleteNetwork",
+        "responses": {
+          "204": { "description": "Interface deleted" },
+          "404": { "$ref": "#/components/responses/DeviceNotFound" },
+          "422": { "$ref": "#/components/responses/DeviceRejected" },
+          "502": { "$ref": "#/components/responses/DeviceError" }
+        }
+      }
+    },
+
+    "/devices/{device_id}/vrfs": {
+      "parameters": [
+        { "$ref": "#/components/parameters/device_id" }
+      ],
+      "get": {
+        "tags": ["vrfs"],
+        "summary": "List all VRFs",
+        "operationId": "listVRFs",
+        "responses": {
+          "200": {
+            "description": "VRF list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/VRFInfo" }
+                }
+              }
+            }
+          },
+          "404": { "$ref": "#/components/responses/DeviceNotFound" },
+          "422": { "$ref": "#/components/responses/DeviceRejected" },
+          "502": { "$ref": "#/components/responses/DeviceError" }
+        }
+      },
+      "post": {
+        "tags": ["vrfs"],
+        "summary": "Create a VRF",
+        "operationId": "createVRF",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateVRFRequest" },
+              "example": { "name": "MGMT", "table": "100", "description": "management-vrf" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "VRF created",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/VRFInfo" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/DeviceNotFound" },
+          "422": { "$ref": "#/components/responses/DeviceRejected" },
+          "502": { "$ref": "#/components/responses/DeviceError" }
+        }
+      }
+    },
+
+    "/devices/{device_id}/vrfs/{vrf}": {
+      "parameters": [
+        { "$ref": "#/components/parameters/device_id" },
+        { "$ref": "#/components/parameters/vrf" }
+      ],
+      "get": {
+        "tags": ["vrfs"],
+        "summary": "Get a VRF",
+        "operationId": "getVRF",
+        "responses": {
+          "200": {
+            "description": "VRF details",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/VRFInfo" }
+              }
+            }
+          },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "502": { "$ref": "#/components/responses/DeviceError" }
+        }
+      },
+      "put": {
+        "tags": ["vrfs"],
+        "summary": "Update a VRF",
+        "description": "Updates one or more fields. Omit fields that should not change.",
+        "operationId": "updateVRF",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateVRFRequest" },
+              "example": { "description": "updated-description" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "VRF updated",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/VRFInfo" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/DeviceNotFound" },
+          "422": { "$ref": "#/components/responses/DeviceRejected" },
+          "502": { "$ref": "#/components/responses/DeviceError" }
+        }
+      },
+      "delete": {
+        "tags": ["vrfs"],
+        "summary": "Delete a VRF",
+        "operationId": "deleteVRF",
+        "responses": {
+          "204": { "description": "VRF deleted" },
+          "404": { "$ref": "#/components/responses/DeviceNotFound" },
+          "422": { "$ref": "#/components/responses/DeviceRejected" },
+          "502": { "$ref": "#/components/responses/DeviceError" }
+        }
+      }
+    },
+
+    "/devices/{device_id}/vlans": {
+      "parameters": [
+        { "$ref": "#/components/parameters/device_id" }
+      ],
+      "get": {
+        "tags": ["vlans"],
+        "summary": "List all VLANs",
+        "description": "Iterates all interface types looking for `vif` (802.1Q) subinterfaces.",
+        "operationId": "listVLANs",
+        "responses": {
+          "200": {
+            "description": "VLAN list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/VLANInfo" }
+                }
+              }
+            }
+          },
+          "404": { "$ref": "#/components/responses/DeviceNotFound" },
+          "422": { "$ref": "#/components/responses/DeviceRejected" },
+          "502": { "$ref": "#/components/responses/DeviceError" }
+        }
+      },
+      "post": {
+        "tags": ["vlans"],
+        "summary": "Create a VLAN subinterface",
+        "description": "Creates a `vif` subinterface under the specified parent interface. `address` is optional.",
+        "operationId": "createVLAN",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateVLANRequest" },
+              "example": {
+                "interface": "eth0",
+                "type": "ethernet",
+                "vlan_id": 100,
+                "address": "10.100.0.1/24",
+                "description": "servers-vlan"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "VLAN created",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/VLANInfo" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/DeviceNotFound" },
+          "422": { "$ref": "#/components/responses/DeviceRejected" },
+          "502": { "$ref": "#/components/responses/DeviceError" }
+        }
+      }
+    },
+
+    "/devices/{device_id}/vlans/{interface}/{vlan_id}": {
+      "parameters": [
+        { "$ref": "#/components/parameters/device_id" },
+        { "$ref": "#/components/parameters/interface" },
+        { "$ref": "#/components/parameters/vlan_id" },
+        { "$ref": "#/components/parameters/iface_type_query" }
+      ],
+      "get": {
+        "tags": ["vlans"],
+        "summary": "Get a VLAN subinterface",
+        "operationId": "getVLAN",
+        "responses": {
+          "200": {
+            "description": "VLAN details",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/VLANInfo" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "502": { "$ref": "#/components/responses/DeviceError" }
+        }
+      },
+      "put": {
+        "tags": ["vlans"],
+        "summary": "Update a VLAN subinterface",
+        "description": "Replaces the address and/or description on the subinterface. If `address` is provided all existing addresses are replaced. `type` defaults to `ethernet`.",
+        "operationId": "updateVLAN",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateVLANRequest" },
+              "example": { "type": "ethernet", "address": "10.100.0.2/24" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "VLAN updated",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/VLANInfo" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/DeviceNotFound" },
+          "422": { "$ref": "#/components/responses/DeviceRejected" },
+          "502": { "$ref": "#/components/responses/DeviceError" }
+        }
+      },
+      "delete": {
+        "tags": ["vlans"],
+        "summary": "Delete a VLAN subinterface",
+        "description": "Removes the entire `vif` subinterface config node. Defaults to `type=ethernet`.",
+        "operationId": "deleteVLAN",
+        "responses": {
+          "204": { "description": "VLAN deleted" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/DeviceNotFound" },
+          "422": { "$ref": "#/components/responses/DeviceRejected" },
+          "502": { "$ref": "#/components/responses/DeviceError" }
+        }
+      }
+    },
+
+    "/devices/{device_id}/firewall/policies": {
+      "parameters": [
+        { "$ref": "#/components/parameters/device_id" }
+      ],
+      "get": {
+        "tags": ["firewall"],
+        "summary": "List all firewall policies",
+        "description": "Returns all IPv4 named firewall policies. Rules are not included in the list view; use GET on a specific policy to retrieve rules.",
+        "operationId": "listPolicies",
+        "responses": {
+          "200": {
+            "description": "Policy list (rules omitted)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/PolicyInfo" }
+                }
+              }
+            }
+          },
+          "404": { "$ref": "#/components/responses/DeviceNotFound" },
+          "422": { "$ref": "#/components/responses/DeviceRejected" },
+          "502": { "$ref": "#/components/responses/DeviceError" }
+        }
+      },
+      "post": {
+        "tags": ["firewall"],
+        "summary": "Create a firewall policy",
+        "operationId": "createPolicy",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreatePolicyRequest" },
+              "example": {
+                "name": "LAN-IN",
+                "default_action": "drop",
+                "description": "inbound-lan-traffic"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Policy created",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PolicyInfo" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/DeviceNotFound" },
+          "422": { "$ref": "#/components/responses/DeviceRejected" },
+          "502": { "$ref": "#/components/responses/DeviceError" }
+        }
+      }
+    },
+
+    "/devices/{device_id}/firewall/policies/{policy}": {
+      "parameters": [
+        { "$ref": "#/components/parameters/device_id" },
+        { "$ref": "#/components/parameters/policy" }
+      ],
+      "get": {
+        "tags": ["firewall"],
+        "summary": "Get a firewall policy",
+        "description": "Returns the policy including all of its rules, keyed by rule number.",
+        "operationId": "getPolicy",
+        "responses": {
+          "200": {
+            "description": "Policy details including rules",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PolicyInfo" },
+                "example": {
+                  "name": "LAN-IN",
+                  "default_action": "drop",
+                  "description": "inbound-lan-traffic",
+                  "rules": {
+                    "10": { "action": "accept", "source": "10.0.0.0/8", "destination": "", "description": "" },
+                    "20": { "action": "drop",   "source": "",            "destination": "", "description": "" }
+                  }
+                }
+              }
+            }
+          },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "502": { "$ref": "#/components/responses/DeviceError" }
+        }
+      },
+      "put": {
+        "tags": ["firewall"],
+        "summary": "Update a firewall policy",
+        "description": "Updates `default_action` and/or `description`. Omit fields that should not change. Rules are managed via the `/rules` sub-resource.",
+        "operationId": "updatePolicy",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdatePolicyRequest" },
+              "example": { "default_action": "accept" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Policy updated",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PolicyInfo" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/DeviceNotFound" },
+          "422": { "$ref": "#/components/responses/DeviceRejected" },
+          "502": { "$ref": "#/components/responses/DeviceError" }
+        }
+      },
+      "delete": {
+        "tags": ["firewall"],
+        "summary": "Delete a firewall policy",
+        "description": "Removes the entire policy including all its rules.",
+        "operationId": "deletePolicy",
+        "responses": {
+          "204": { "description": "Policy deleted" },
+          "404": { "$ref": "#/components/responses/DeviceNotFound" },
+          "422": { "$ref": "#/components/responses/DeviceRejected" },
+          "502": { "$ref": "#/components/responses/DeviceError" }
+        }
+      }
+    },
+
+    "/devices/{device_id}/firewall/policies/{policy}/rules": {
+      "parameters": [
+        { "$ref": "#/components/parameters/device_id" },
+        { "$ref": "#/components/parameters/policy" }
+      ],
+      "post": {
+        "tags": ["firewall"],
+        "summary": "Add a rule to a policy",
+        "description": "Adds a numbered rule to an existing policy. `rule_id` must be a positive integer (VyOS convention: multiples of 10). If the rule already exists it is overwritten.",
+        "operationId": "addRule",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/AddRuleRequest" },
+              "example": {
+                "rule_id": 10,
+                "action": "accept",
+                "source": "10.0.0.0/8",
+                "description": "allow-rfc1918"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Rule added",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/RuleResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/DeviceNotFound" },
+          "422": { "$ref": "#/components/responses/DeviceRejected" },
+          "502": { "$ref": "#/components/responses/DeviceError" }
+        }
+      }
+    },
+
+    "/devices/{device_id}/firewall/policies/{policy}/rules/{rule_id}": {
+      "parameters": [
+        { "$ref": "#/components/parameters/device_id" },
+        { "$ref": "#/components/parameters/policy" },
+        { "$ref": "#/components/parameters/rule_id" }
+      ],
+      "delete": {
+        "tags": ["firewall"],
+        "summary": "Delete a rule",
+        "operationId": "deleteRule",
+        "responses": {
+          "204": { "description": "Rule deleted" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/DeviceNotFound" },
+          "422": { "$ref": "#/components/responses/DeviceRejected" },
+          "502": { "$ref": "#/components/responses/DeviceError" }
+        }
+      }
+    },
+
+    "/devices/{device_id}/firewall/address-groups": {
+      "parameters": [
+        { "$ref": "#/components/parameters/device_id" }
+      ],
+      "get": {
+        "tags": ["address-groups"],
+        "summary": "List all address groups",
+        "operationId": "listAddressGroups",
+        "responses": {
+          "200": {
+            "description": "Address group list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/AddressGroupInfo" }
+                }
+              }
+            }
+          },
+          "404": { "$ref": "#/components/responses/DeviceNotFound" },
+          "422": { "$ref": "#/components/responses/DeviceRejected" },
+          "502": { "$ref": "#/components/responses/DeviceError" }
+        }
+      },
+      "post": {
+        "tags": ["address-groups"],
+        "summary": "Create an address group",
+        "description": "Creates a new address group and populates it with the supplied addresses. An empty `addresses` list creates an empty group.",
+        "operationId": "createAddressGroup",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateAddressGroupRequest" },
+              "example": {
+                "name": "RFC1918",
+                "addresses": ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"],
+                "description": "private-ranges"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Address group created",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AddressGroupInfo" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/DeviceNotFound" },
+          "422": { "$ref": "#/components/responses/DeviceRejected" },
+          "502": { "$ref": "#/components/responses/DeviceError" }
+        }
+      }
+    },
+
+    "/devices/{device_id}/firewall/address-groups/{group}": {
+      "parameters": [
+        { "$ref": "#/components/parameters/device_id" },
+        { "$ref": "#/components/parameters/group" }
+      ],
+      "get": {
+        "tags": ["address-groups"],
+        "summary": "Get an address group",
+        "operationId": "getAddressGroup",
+        "responses": {
+          "200": {
+            "description": "Address group details",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AddressGroupInfo" }
+              }
+            }
+          },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "502": { "$ref": "#/components/responses/DeviceError" }
+        }
+      },
+      "put": {
+        "tags": ["address-groups"],
+        "summary": "Replace an address group",
+        "description": "Full replacement: deletes all existing members, then adds the supplied addresses. An empty list clears the group.",
+        "operationId": "updateAddressGroup",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateAddressGroupRequest" },
+              "example": {
+                "addresses": ["192.168.0.0/24", "192.168.1.0/24"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Address group replaced",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AddressGroupInfo" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/DeviceNotFound" },
+          "422": { "$ref": "#/components/responses/DeviceRejected" },
+          "502": { "$ref": "#/components/responses/DeviceError" }
+        }
+      },
+      "delete": {
+        "tags": ["address-groups"],
+        "summary": "Delete an address group",
+        "operationId": "deleteAddressGroup",
+        "responses": {
+          "204": { "description": "Address group deleted" },
+          "404": { "$ref": "#/components/responses/DeviceNotFound" },
+          "422": { "$ref": "#/components/responses/DeviceRejected" },
+          "502": { "$ref": "#/components/responses/DeviceError" }
+        }
+      }
+    }
+
+  },
+
+  "components": {
+
+    "parameters": {
+      "device_id": {
+        "name": "device_id",
+        "in": "path",
+        "required": true,
+        "description": "Device name as registered in VYOS_HOSTS",
+        "schema": { "type": "string", "example": "router1" }
+      },
+      "interface": {
+        "name": "interface",
+        "in": "path",
+        "required": true,
+        "description": "Interface name (e.g. `eth0`, `bond0`, `lo`)",
+        "schema": { "type": "string", "example": "eth0" }
+      },
+      "vlan_id": {
+        "name": "vlan_id",
+        "in": "path",
+        "required": true,
+        "description": "802.1Q VLAN ID (1–4094)",
+        "schema": { "type": "integer", "minimum": 1, "maximum": 4094, "example": 100 }
+      },
+      "vrf": {
+        "name": "vrf",
+        "in": "path",
+        "required": true,
+        "description": "VRF name",
+        "schema": { "type": "string", "example": "MGMT" }
+      },
+      "policy": {
+        "name": "policy",
+        "in": "path",
+        "required": true,
+        "description": "Firewall policy name",
+        "schema": { "type": "string", "example": "LAN-IN" }
+      },
+      "rule_id": {
+        "name": "rule_id",
+        "in": "path",
+        "required": true,
+        "description": "Rule number (positive integer, VyOS convention: multiples of 10)",
+        "schema": { "type": "integer", "minimum": 1, "example": 10 }
+      },
+      "group": {
+        "name": "group",
+        "in": "path",
+        "required": true,
+        "description": "Address group name",
+        "schema": { "type": "string", "example": "RFC1918" }
+      },
+      "iface_type_query": {
+        "name": "type",
+        "in": "query",
+        "required": false,
+        "description": "Interface type in the VyOS config tree. Defaults to `ethernet`.",
+        "schema": {
+          "type": "string",
+          "default": "ethernet",
+          "enum": ["ethernet", "loopback", "bonding", "bridge", "wireguard", "dummy"]
+        }
+      }
+    },
+
+    "schemas": {
+
+      "HealthResponse": {
+        "type": "object",
+        "required": ["status"],
+        "properties": {
+          "status": { "type": "string", "example": "ok" }
+        }
+      },
+
+      "Error": {
+        "type": "object",
+        "required": ["error"],
+        "properties": {
+          "error": { "type": "string", "example": "device not found: router99" }
+        }
+      },
+
+      "DeviceInfo": {
+        "type": "object",
+        "required": ["id", "url", "healthy"],
+        "properties": {
+          "id":      { "type": "string",  "description": "Device name from VYOS_HOSTS", "example": "router1" },
+          "url":     { "type": "string",  "description": "Base URL of the VyOS device",  "example": "https://192.168.1.1:443" },
+          "healthy": { "type": "boolean", "description": "Whether the device responded to the connectivity probe" }
+        }
+      },
+
+      "NetworkInfo": {
+        "type": "object",
+        "required": ["interface", "type", "addresses"],
+        "properties": {
+          "interface":   { "type": "string", "example": "eth0" },
+          "type":        { "type": "string", "example": "ethernet" },
+          "addresses":   { "type": "array", "items": { "type": "string" }, "example": ["192.168.1.1/24"] },
+          "description": { "type": "string", "example": "LAN" }
+        }
+      },
+
+      "CreateNetworkRequest": {
+        "type": "object",
+        "required": ["interface", "type", "address"],
+        "properties": {
+          "interface":   { "type": "string", "description": "Interface name", "example": "eth0" },
+          "type":        { "type": "string", "description": "Interface type in the VyOS config tree", "example": "ethernet" },
+          "address":     { "type": "string", "description": "IPv4 address in CIDR notation", "example": "192.168.1.1/24" },
+          "description": { "type": "string", "description": "Alphanumeric label (no spaces)", "example": "LAN" }
+        }
+      },
+
+      "UpdateNetworkRequest": {
+        "type": "object",
+        "required": ["type", "address"],
+        "properties": {
+          "type":        { "type": "string", "description": "Interface type in the VyOS config tree", "example": "ethernet" },
+          "address":     { "type": "string", "description": "Replacement IPv4 address in CIDR notation", "example": "10.0.0.1/24" },
+          "description": { "type": "string", "example": "uplink" }
+        }
+      },
+
+      "VRFInfo": {
+        "type": "object",
+        "required": ["name", "table"],
+        "properties": {
+          "name":        { "type": "string", "example": "MGMT" },
+          "table":       { "type": "string", "description": "Linux routing table ID", "example": "100" },
+          "description": { "type": "string", "example": "management-vrf" }
+        }
+      },
+
+      "CreateVRFRequest": {
+        "type": "object",
+        "required": ["name", "table"],
+        "properties": {
+          "name":        { "type": "string", "example": "MGMT" },
+          "table":       { "type": "string", "description": "Linux routing table ID (unique across VRFs)", "example": "100" },
+          "description": { "type": "string", "example": "management-vrf" }
+        }
+      },
+
+      "UpdateVRFRequest": {
+        "type": "object",
+        "properties": {
+          "table":       { "type": "string", "example": "101" },
+          "description": { "type": "string", "example": "updated-description" }
+        }
+      },
+
+      "VLANInfo": {
+        "type": "object",
+        "required": ["interface", "type", "vlan_id", "addresses"],
+        "properties": {
+          "interface":   { "type": "string", "example": "eth0" },
+          "type":        { "type": "string", "example": "ethernet" },
+          "vlan_id":     { "type": "integer", "minimum": 1, "maximum": 4094, "example": 100 },
+          "addresses":   { "type": "array", "items": { "type": "string" }, "example": ["10.100.0.1/24"] },
+          "description": { "type": "string", "example": "servers-vlan" }
+        }
+      },
+
+      "CreateVLANRequest": {
+        "type": "object",
+        "required": ["interface", "type", "vlan_id"],
+        "properties": {
+          "interface":   { "type": "string", "example": "eth0" },
+          "type":        { "type": "string", "example": "ethernet" },
+          "vlan_id":     { "type": "integer", "minimum": 1, "maximum": 4094, "example": 100 },
+          "address":     { "type": "string", "description": "Optional IPv4 address in CIDR notation", "example": "10.100.0.1/24" },
+          "description": { "type": "string", "example": "servers-vlan" }
+        }
+      },
+
+      "UpdateVLANRequest": {
+        "type": "object",
+        "properties": {
+          "type":        { "type": "string", "description": "Interface type; defaults to `ethernet`", "example": "ethernet" },
+          "address":     { "type": "string", "description": "Replacement IPv4 address in CIDR notation", "example": "10.100.0.2/24" },
+          "description": { "type": "string", "example": "updated-vlan" }
+        }
+      },
+
+      "RuleInfo": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action":      { "type": "string", "enum": ["accept", "drop", "reject"], "example": "accept" },
+          "source":      { "type": "string", "description": "Source IP or CIDR", "example": "10.0.0.0/8" },
+          "destination": { "type": "string", "description": "Destination IP or CIDR", "example": "" },
+          "description": { "type": "string", "example": "allow-rfc1918" }
+        }
+      },
+
+      "PolicyInfo": {
+        "type": "object",
+        "required": ["name", "default_action"],
+        "properties": {
+          "name":           { "type": "string", "example": "LAN-IN" },
+          "default_action": { "type": "string", "enum": ["accept", "drop", "reject"], "example": "drop" },
+          "description":    { "type": "string", "example": "inbound-lan-traffic" },
+          "rules": {
+            "type": "object",
+            "description": "Map of rule number (string) to rule details. Present on GET, omitted from list responses.",
+            "additionalProperties": { "$ref": "#/components/schemas/RuleInfo" },
+            "example": {
+              "10": { "action": "accept", "source": "10.0.0.0/8", "destination": "", "description": "" }
+            }
+          }
+        }
+      },
+
+      "CreatePolicyRequest": {
+        "type": "object",
+        "required": ["name", "default_action"],
+        "properties": {
+          "name":           { "type": "string", "example": "LAN-IN" },
+          "default_action": { "type": "string", "enum": ["accept", "drop", "reject"], "example": "drop" },
+          "description":    { "type": "string", "example": "inbound-lan-traffic" }
+        }
+      },
+
+      "UpdatePolicyRequest": {
+        "type": "object",
+        "properties": {
+          "default_action": { "type": "string", "enum": ["accept", "drop", "reject"], "example": "accept" },
+          "description":    { "type": "string", "example": "updated-description" }
+        }
+      },
+
+      "AddRuleRequest": {
+        "type": "object",
+        "required": ["rule_id", "action"],
+        "properties": {
+          "rule_id":     { "type": "integer", "minimum": 1, "description": "Rule number (VyOS convention: multiples of 10)", "example": 10 },
+          "action":      { "type": "string", "enum": ["accept", "drop", "reject"], "example": "accept" },
+          "source":      { "type": "string", "description": "Source IP or CIDR to match", "example": "10.0.0.0/8" },
+          "destination": { "type": "string", "description": "Destination IP or CIDR to match", "example": "" },
+          "description": { "type": "string", "example": "allow-rfc1918" }
+        }
+      },
+
+      "RuleResponse": {
+        "type": "object",
+        "required": ["policy", "rule_id", "action"],
+        "properties": {
+          "policy":      { "type": "string", "example": "LAN-IN" },
+          "rule_id":     { "type": "integer", "example": 10 },
+          "action":      { "type": "string", "example": "accept" },
+          "source":      { "type": "string", "example": "10.0.0.0/8" },
+          "destination": { "type": "string", "example": "" },
+          "description": { "type": "string", "example": "allow-rfc1918" }
+        }
+      },
+
+      "AddressGroupInfo": {
+        "type": "object",
+        "required": ["name", "addresses"],
+        "properties": {
+          "name":        { "type": "string", "example": "RFC1918" },
+          "addresses":   { "type": "array", "items": { "type": "string" }, "example": ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"] },
+          "description": { "type": "string", "example": "private-ranges" }
+        }
+      },
+
+      "CreateAddressGroupRequest": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name":        { "type": "string", "example": "RFC1918" },
+          "addresses":   { "type": "array", "items": { "type": "string" }, "description": "Initial members. Empty list creates an empty group.", "example": ["10.0.0.0/8"] },
+          "description": { "type": "string", "example": "private-ranges" }
+        }
+      },
+
+      "UpdateAddressGroupRequest": {
+        "type": "object",
+        "required": ["addresses"],
+        "properties": {
+          "addresses":   { "type": "array", "items": { "type": "string" }, "description": "Complete replacement address list", "example": ["192.168.0.0/24"] },
+          "description": { "type": "string", "example": "updated-description" }
+        }
+      }
+
+    },
+
+    "responses": {
+      "BadRequest": {
+        "description": "Missing or invalid request fields",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Error" },
+            "example": { "error": "interface, type, and address are required" }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "Device or resource not found",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Error" },
+            "example": { "error": "interface not found" }
+          }
+        }
+      },
+      "DeviceNotFound": {
+        "description": "The requested device_id is not registered",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Error" },
+            "example": { "error": "device not found: router99" }
+          }
+        }
+      },
+      "DeviceRejected": {
+        "description": "The VyOS device rejected the operation (invalid config, constraint violation, etc.)",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Error" },
+            "example": { "error": "device rejected operation: Configuration path already exists" }
+          }
+        }
+      },
+      "DeviceError": {
+        "description": "Could not communicate with the VyOS device (network error, TLS failure, timeout)",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Error" },
+            "example": { "error": "device communication error: dial tcp 192.168.1.1:443: connection refused" }
+          }
+        }
+      }
+    }
+
+  }
+}
