@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/ganawaj/go-vyos/vyos"
+	"github.com/valueiron/vyos-api/vyos"
 	"github.com/gorilla/mux"
 )
 

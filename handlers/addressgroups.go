@@ -92,7 +92,7 @@ func (h *Handler) CreateAddressGroup(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if !out.Success {
-			writeError(w, http.StatusUnprocessableEntity, "device rejected operation: "+out.Error)
+			writeError(w, http.StatusUnprocessableEntity, "device rejected operation: "+fmt.Sprint(out.Error))
 			return
 		}
 	}
@@ -106,7 +106,7 @@ func (h *Handler) CreateAddressGroup(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if !out.Success {
-			writeError(w, http.StatusUnprocessableEntity, "device rejected operation: "+out.Error)
+			writeError(w, http.StatusUnprocessableEntity, "device rejected operation: "+fmt.Sprint(out.Error))
 			return
 		}
 	}
@@ -173,7 +173,7 @@ func (h *Handler) UpdateAddressGroup(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if !out.Success {
-			writeError(w, http.StatusUnprocessableEntity, "device rejected operation: "+out.Error)
+			writeError(w, http.StatusUnprocessableEntity, "device rejected operation: "+fmt.Sprint(out.Error))
 			return
 		}
 	}
@@ -205,7 +205,7 @@ func (h *Handler) DeleteAddressGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !out.Success {
-		writeError(w, http.StatusUnprocessableEntity, "device rejected operation: "+out.Error)
+		writeError(w, http.StatusUnprocessableEntity, "device rejected operation: "+fmt.Sprint(out.Error))
 		return
 	}
 

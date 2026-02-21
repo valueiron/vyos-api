@@ -458,7 +458,7 @@
       "get": {
         "tags": ["firewall"],
         "summary": "List all firewall policies",
-        "description": "Returns all IPv4 named firewall policies. Rules are not included in the list view; use GET on a specific policy to retrieve rules.",
+        "description": "Returns all IPv4 named firewall policies plus any configured base chains (`forward`, `input`, `output`). Rules are not included in the list view; use GET on a specific policy to retrieve rules.",
         "operationId": "listPolicies",
         "responses": {
           "200": {
@@ -639,6 +639,118 @@
         "operationId": "deleteRule",
         "responses": {
           "204": { "description": "Rule deleted" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/DeviceNotFound" },
+          "422": { "$ref": "#/components/responses/DeviceRejected" },
+          "502": { "$ref": "#/components/responses/DeviceError" }
+        }
+      }
+    },
+
+    "/devices/{device_id}/firewall/policies/{policy}/disable": {
+      "parameters": [
+        { "$ref": "#/components/parameters/device_id" },
+        { "$ref": "#/components/parameters/policy" }
+      ],
+      "put": {
+        "tags": ["firewall"],
+        "summary": "Disable a firewall policy",
+        "description": "Sets the `disable` flag on a named policy, causing VyOS to skip all rules in the policy without deleting it.",
+        "operationId": "disablePolicy",
+        "responses": {
+          "200": {
+            "description": "Policy disabled",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DisabledResponse" },
+                "example": { "disabled": true }
+              }
+            }
+          },
+          "404": { "$ref": "#/components/responses/DeviceNotFound" },
+          "422": { "$ref": "#/components/responses/DeviceRejected" },
+          "502": { "$ref": "#/components/responses/DeviceError" }
+        }
+      }
+    },
+
+    "/devices/{device_id}/firewall/policies/{policy}/enable": {
+      "parameters": [
+        { "$ref": "#/components/parameters/device_id" },
+        { "$ref": "#/components/parameters/policy" }
+      ],
+      "put": {
+        "tags": ["firewall"],
+        "summary": "Enable a firewall policy",
+        "description": "Removes the `disable` flag from a named policy, re-activating all its rules.",
+        "operationId": "enablePolicy",
+        "responses": {
+          "200": {
+            "description": "Policy enabled",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DisabledResponse" },
+                "example": { "disabled": false }
+              }
+            }
+          },
+          "404": { "$ref": "#/components/responses/DeviceNotFound" },
+          "422": { "$ref": "#/components/responses/DeviceRejected" },
+          "502": { "$ref": "#/components/responses/DeviceError" }
+        }
+      }
+    },
+
+    "/devices/{device_id}/firewall/policies/{policy}/rules/{rule_id}/disable": {
+      "parameters": [
+        { "$ref": "#/components/parameters/device_id" },
+        { "$ref": "#/components/parameters/policy" },
+        { "$ref": "#/components/parameters/rule_id" }
+      ],
+      "put": {
+        "tags": ["firewall"],
+        "summary": "Disable a firewall rule",
+        "description": "Sets the `disable` flag on a rule. The rule remains defined but is skipped by VyOS.",
+        "operationId": "disableRule",
+        "responses": {
+          "200": {
+            "description": "Rule disabled",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DisabledResponse" },
+                "example": { "disabled": true }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/DeviceNotFound" },
+          "422": { "$ref": "#/components/responses/DeviceRejected" },
+          "502": { "$ref": "#/components/responses/DeviceError" }
+        }
+      }
+    },
+
+    "/devices/{device_id}/firewall/policies/{policy}/rules/{rule_id}/enable": {
+      "parameters": [
+        { "$ref": "#/components/parameters/device_id" },
+        { "$ref": "#/components/parameters/policy" },
+        { "$ref": "#/components/parameters/rule_id" }
+      ],
+      "put": {
+        "tags": ["firewall"],
+        "summary": "Enable a firewall rule",
+        "description": "Removes the `disable` flag from a rule, re-activating it.",
+        "operationId": "enableRule",
+        "responses": {
+          "200": {
+            "description": "Rule enabled",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DisabledResponse" },
+                "example": { "disabled": false }
+              }
+            }
+          },
           "400": { "$ref": "#/components/responses/BadRequest" },
           "404": { "$ref": "#/components/responses/DeviceNotFound" },
           "422": { "$ref": "#/components/responses/DeviceRejected" },
@@ -965,10 +1077,13 @@
         "type": "object",
         "required": ["action"],
         "properties": {
-          "action":      { "type": "string", "enum": ["accept", "drop", "reject"], "example": "accept" },
-          "source":      { "type": "string", "description": "Source IP or CIDR", "example": "10.0.0.0/8" },
-          "destination": { "type": "string", "description": "Destination IP or CIDR", "example": "" },
-          "description": { "type": "string", "example": "allow-rfc1918" }
+          "action":            { "type": "string", "enum": ["accept", "drop", "reject"], "example": "accept" },
+          "source":            { "type": "string", "description": "Source IP or CIDR", "example": "10.0.0.0/8" },
+          "source_group":      { "type": "string", "description": "Source address-group name (mutually exclusive with source)", "example": "RFC1918" },
+          "destination":       { "type": "string", "description": "Destination IP or CIDR", "example": "" },
+          "destination_group": { "type": "string", "description": "Destination address-group name (mutually exclusive with destination)", "example": "" },
+          "description":       { "type": "string", "example": "allow-rfc1918" },
+          "disabled":          { "type": "boolean", "description": "True if the rule has the VyOS disable flag set", "example": false }
         }
       },
 
@@ -979,6 +1094,7 @@
           "name":           { "type": "string", "example": "LAN-IN" },
           "default_action": { "type": "string", "enum": ["accept", "drop", "reject"], "example": "drop" },
           "description":    { "type": "string", "example": "inbound-lan-traffic" },
+          "disabled":       { "type": "boolean", "description": "True if the policy has the VyOS disable flag set", "example": false },
           "rules": {
             "type": "object",
             "description": "Map of rule number (string) to rule details. Present on GET, omitted from list responses.",
@@ -1012,11 +1128,13 @@
         "type": "object",
         "required": ["rule_id", "action"],
         "properties": {
-          "rule_id":     { "type": "integer", "minimum": 1, "description": "Rule number (VyOS convention: multiples of 10)", "example": 10 },
-          "action":      { "type": "string", "enum": ["accept", "drop", "reject"], "example": "accept" },
-          "source":      { "type": "string", "description": "Source IP or CIDR to match", "example": "10.0.0.0/8" },
-          "destination": { "type": "string", "description": "Destination IP or CIDR to match", "example": "" },
-          "description": { "type": "string", "example": "allow-rfc1918" }
+          "rule_id":           { "type": "integer", "minimum": 1, "description": "Rule number (VyOS convention: multiples of 10)", "example": 10 },
+          "action":            { "type": "string", "enum": ["accept", "drop", "reject"], "example": "accept" },
+          "source":            { "type": "string", "description": "Source IP or CIDR to match (mutually exclusive with source_group)", "example": "10.0.0.0/8" },
+          "source_group":      { "type": "string", "description": "Source address-group name to match (mutually exclusive with source)", "example": "RFC1918" },
+          "destination":       { "type": "string", "description": "Destination IP or CIDR to match (mutually exclusive with destination_group)", "example": "" },
+          "destination_group": { "type": "string", "description": "Destination address-group name to match (mutually exclusive with destination)", "example": "" },
+          "description":       { "type": "string", "example": "allow-rfc1918" }
         }
       },
 
@@ -1024,12 +1142,22 @@
         "type": "object",
         "required": ["policy", "rule_id", "action"],
         "properties": {
-          "policy":      { "type": "string", "example": "LAN-IN" },
-          "rule_id":     { "type": "integer", "example": 10 },
-          "action":      { "type": "string", "example": "accept" },
-          "source":      { "type": "string", "example": "10.0.0.0/8" },
-          "destination": { "type": "string", "example": "" },
-          "description": { "type": "string", "example": "allow-rfc1918" }
+          "policy":            { "type": "string", "example": "LAN-IN" },
+          "rule_id":           { "type": "integer", "example": 10 },
+          "action":            { "type": "string", "example": "accept" },
+          "source":            { "type": "string", "example": "10.0.0.0/8" },
+          "source_group":      { "type": "string", "example": "" },
+          "destination":       { "type": "string", "example": "" },
+          "destination_group": { "type": "string", "example": "" },
+          "description":       { "type": "string", "example": "allow-rfc1918" }
+        }
+      },
+
+      "DisabledResponse": {
+        "type": "object",
+        "required": ["disabled"],
+        "properties": {
+          "disabled": { "type": "boolean", "description": "Current disabled state after the operation", "example": true }
         }
       },
 

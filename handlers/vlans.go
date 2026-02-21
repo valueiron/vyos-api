@@ -47,7 +47,7 @@ func (h *Handler) ListVLANs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !out.Success {
-		writeError(w, http.StatusUnprocessableEntity, "device rejected operation: "+out.Error)
+		writeError(w, http.StatusUnprocessableEntity, "device rejected operation: "+fmt.Sprint(out.Error))
 		return
 	}
 
@@ -110,7 +110,7 @@ func (h *Handler) CreateVLAN(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if !out.Success {
-			writeError(w, http.StatusUnprocessableEntity, "device rejected operation: "+out.Error)
+			writeError(w, http.StatusUnprocessableEntity, "device rejected operation: "+fmt.Sprint(out.Error))
 			return
 		}
 	} else {
@@ -122,7 +122,7 @@ func (h *Handler) CreateVLAN(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if !out.Success {
-			writeError(w, http.StatusUnprocessableEntity, "device rejected operation: "+out.Error)
+			writeError(w, http.StatusUnprocessableEntity, "device rejected operation: "+fmt.Sprint(out.Error))
 			return
 		}
 	}
@@ -227,7 +227,7 @@ func (h *Handler) UpdateVLAN(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if !out.Success {
-			writeError(w, http.StatusUnprocessableEntity, "device rejected operation: "+out.Error)
+			writeError(w, http.StatusUnprocessableEntity, "device rejected operation: "+fmt.Sprint(out.Error))
 			return
 		}
 	}
@@ -278,7 +278,7 @@ func (h *Handler) DeleteVLAN(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !out.Success {
-		writeError(w, http.StatusUnprocessableEntity, "device rejected operation: "+out.Error)
+		writeError(w, http.StatusUnprocessableEntity, "device rejected operation: "+fmt.Sprint(out.Error))
 		return
 	}
 

@@ -65,7 +65,7 @@ func (h *Handler) ListNetworks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !out.Success {
-		writeError(w, http.StatusUnprocessableEntity, "device rejected operation: "+out.Error)
+		writeError(w, http.StatusUnprocessableEntity, "device rejected operation: "+fmt.Sprint(out.Error))
 		return
 	}
 
@@ -114,7 +114,7 @@ func (h *Handler) CreateNetwork(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !out.Success {
-		writeError(w, http.StatusUnprocessableEntity, "device rejected operation: "+out.Error)
+		writeError(w, http.StatusUnprocessableEntity, "device rejected operation: "+fmt.Sprint(out.Error))
 		return
 	}
 
@@ -204,7 +204,7 @@ func (h *Handler) UpdateNetwork(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !out.Success {
-		writeError(w, http.StatusUnprocessableEntity, "device rejected operation: "+out.Error)
+		writeError(w, http.StatusUnprocessableEntity, "device rejected operation: "+fmt.Sprint(out.Error))
 		return
 	}
 
@@ -242,7 +242,7 @@ func (h *Handler) DeleteNetwork(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !out.Success {
-		writeError(w, http.StatusUnprocessableEntity, "device rejected operation: "+out.Error)
+		writeError(w, http.StatusUnprocessableEntity, "device rejected operation: "+fmt.Sprint(out.Error))
 		return
 	}
 
