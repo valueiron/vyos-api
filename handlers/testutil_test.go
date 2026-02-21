@@ -10,8 +10,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/example/vyos-api/handlers"
-	"github.com/ganawaj/go-vyos/vyos"
+	"github.com/valueiron/vyos-api/handlers"
+	"github.com/valueiron/vyos-api/vyos"
 	"github.com/gorilla/mux"
 )
 
@@ -43,8 +43,9 @@ type mockVyOS struct {
 }
 
 func (m *mockVyOS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseMultipartForm(1 << 20); err != nil {
-		http.Error(w, "bad multipart: "+err.Error(), http.StatusBadRequest)
+	// ParseForm handles both application/x-www-form-urlencoded and multipart/form-data.
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form: "+err.Error(), http.StatusBadRequest)
 		return
 	}
 	data := r.FormValue("data")

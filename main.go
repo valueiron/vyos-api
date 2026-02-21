@@ -12,8 +12,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/example/vyos-api/handlers"
-	"github.com/ganawaj/go-vyos/vyos"
+	"github.com/valueiron/vyos-api/handlers"
+	"github.com/valueiron/vyos-api/vyos"
 	"github.com/gorilla/mux"
 )
 
@@ -67,6 +67,10 @@ func main() {
 	r.HandleFunc("/devices/{device_id}/firewall/policies/{policy}", h.DeletePolicy).Methods(http.MethodDelete)
 	r.HandleFunc("/devices/{device_id}/firewall/policies/{policy}/rules", h.AddRule).Methods(http.MethodPost)
 	r.HandleFunc("/devices/{device_id}/firewall/policies/{policy}/rules/{rule_id}", h.DeleteRule).Methods(http.MethodDelete)
+	r.HandleFunc("/devices/{device_id}/firewall/policies/{policy}/disable", h.DisablePolicy).Methods(http.MethodPut)
+	r.HandleFunc("/devices/{device_id}/firewall/policies/{policy}/enable", h.EnablePolicy).Methods(http.MethodPut)
+	r.HandleFunc("/devices/{device_id}/firewall/policies/{policy}/rules/{rule_id}/disable", h.DisableRule).Methods(http.MethodPut)
+	r.HandleFunc("/devices/{device_id}/firewall/policies/{policy}/rules/{rule_id}/enable", h.EnableRule).Methods(http.MethodPut)
 
 	// Firewall address groups.
 	r.HandleFunc("/devices/{device_id}/firewall/address-groups", h.ListAddressGroups).Methods(http.MethodGet)

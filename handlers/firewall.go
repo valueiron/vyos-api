@@ -18,15 +18,19 @@ type PolicyInfo struct {
 	Name          string              `json:"name"`
 	DefaultAction string              `json:"default_action"`
 	Description   string              `json:"description,omitempty"`
+	Disabled      bool                `json:"disabled,omitempty"`
 	Rules         map[string]RuleInfo `json:"rules,omitempty"`
 }
 
 // RuleInfo is the API representation of a firewall rule.
 type RuleInfo struct {
-	Action      string `json:"action"`
-	Source      string `json:"source,omitempty"`
-	Destination string `json:"destination,omitempty"`
-	Description string `json:"description,omitempty"`
+	Action           string `json:"action"`
+	Source           string `json:"source,omitempty"`
+	SourceGroup      string `json:"source_group,omitempty"`
+	Destination      string `json:"destination,omitempty"`
+	DestinationGroup string `json:"destination_group,omitempty"`
+	Description      string `json:"description,omitempty"`
+	Disabled         bool   `json:"disabled,omitempty"`
 }
 
 // CreatePolicyRequest is the JSON body for POST /devices/{device_id}/firewall/policies.
@@ -44,11 +48,13 @@ type UpdatePolicyRequest struct {
 
 // AddRuleRequest is the JSON body for POST /devices/{device_id}/firewall/policies/{policy}/rules.
 type AddRuleRequest struct {
-	RuleID      int    `json:"rule_id"`
-	Action      string `json:"action"`
-	Source      string `json:"source,omitempty"`
-	Destination string `json:"destination,omitempty"`
-	Description string `json:"description,omitempty"`
+	RuleID           int    `json:"rule_id"`
+	Action           string `json:"action"`
+	Source           string `json:"source,omitempty"`
+	SourceGroup      string `json:"source_group,omitempty"`
+	Destination      string `json:"destination,omitempty"`
+	DestinationGroup string `json:"destination_group,omitempty"`
+	Description      string `json:"description,omitempty"`
 }
 
 // Base chain path suffixes (firewall ipv4 <dir> filter).
@@ -148,7 +154,7 @@ func (h *Handler) CreatePolicy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !out.Success {
-		writeError(w, http.StatusUnprocessableEntity, "device rejected operation: "+out.Error)
+		writeError(w, http.StatusUnprocessableEntity, "device rejected operation: "+errMsg(out.Error))
 		return
 	}
 
@@ -233,7 +239,7 @@ func (h *Handler) UpdatePolicy(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if !out.Success {
-			writeError(w, http.StatusUnprocessableEntity, "device rejected operation: "+out.Error)
+			writeError(w, http.StatusUnprocessableEntity, "device rejected operation: "+errMsg(out.Error))
 			return
 		}
 	}
@@ -268,7 +274,7 @@ func (h *Handler) DeletePolicy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !out.Success {
-		writeError(w, http.StatusUnprocessableEntity, "device rejected operation: "+out.Error)
+		writeError(w, http.StatusUnprocessableEntity, "device rejected operation: "+errMsg(out.Error))
 		return
 	}
 
@@ -302,17 +308,23 @@ func (h *Handler) AddRule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !out.Success {
-		writeError(w, http.StatusUnprocessableEntity, "device rejected operation: "+out.Error)
+		writeError(w, http.StatusUnprocessableEntity, "device rejected operation: "+errMsg(out.Error))
 		return
 	}
 
 	if req.Source != "" {
 		srcPath := fmt.Sprintf("firewall ipv4 name %s rule %d source address %s", policy, req.RuleID, req.Source)
 		c.Conf.Set(r.Context(), srcPath) //nolint:errcheck
+	} else if req.SourceGroup != "" {
+		srcPath := fmt.Sprintf("firewall ipv4 name %s rule %d source group address-group %s", policy, req.RuleID, req.SourceGroup)
+		c.Conf.Set(r.Context(), srcPath) //nolint:errcheck
 	}
 
 	if req.Destination != "" {
 		dstPath := fmt.Sprintf("firewall ipv4 name %s rule %d destination address %s", policy, req.RuleID, req.Destination)
+		c.Conf.Set(r.Context(), dstPath) //nolint:errcheck
+	} else if req.DestinationGroup != "" {
+		dstPath := fmt.Sprintf("firewall ipv4 name %s rule %d destination group address-group %s", policy, req.RuleID, req.DestinationGroup)
 		c.Conf.Set(r.Context(), dstPath) //nolint:errcheck
 	}
 
@@ -322,12 +334,14 @@ func (h *Handler) AddRule(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusCreated, map[string]interface{}{
-		"policy":      policy,
-		"rule_id":     req.RuleID,
-		"action":      req.Action,
-		"source":      req.Source,
-		"destination": req.Destination,
-		"description": req.Description,
+		"policy":            policy,
+		"rule_id":           req.RuleID,
+		"action":            req.Action,
+		"source":            req.Source,
+		"source_group":      req.SourceGroup,
+		"destination":       req.Destination,
+		"destination_group": req.DestinationGroup,
+		"description":       req.Description,
 	})
 }
 
@@ -354,7 +368,7 @@ func (h *Handler) DeleteRule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !out.Success {
-		writeError(w, http.StatusUnprocessableEntity, "device rejected operation: "+out.Error)
+		writeError(w, http.StatusUnprocessableEntity, "device rejected operation: "+errMsg(out.Error))
 		return
 	}
 
@@ -366,6 +380,7 @@ func parsePolicyData(name string, data interface{}) PolicyInfo {
 	cfg, _ := data.(map[string]interface{})
 	defaultAction, _ := cfg["default-action"].(string)
 	desc, _ := cfg["description"].(string)
+	_, policyDisabled := cfg["disable"]
 
 	rules := make(map[string]RuleInfo)
 	if ruleMap, ok := cfg["rule"].(map[string]interface{}); ok {
@@ -373,20 +388,30 @@ func parsePolicyData(name string, data interface{}) PolicyInfo {
 			ruleCfg, _ := ruleData.(map[string]interface{})
 			action, _ := ruleCfg["action"].(string)
 			ruleDesc, _ := ruleCfg["description"].(string)
+			_, ruleDisabled := ruleCfg["disable"]
 
-			var srcAddr, dstAddr string
+			var srcAddr, srcGroup, dstAddr, dstGroup string
 			if src, ok := ruleCfg["source"].(map[string]interface{}); ok {
 				srcAddr, _ = src["address"].(string)
+				if grp, ok := src["group"].(map[string]interface{}); ok {
+					srcGroup, _ = grp["address-group"].(string)
+				}
 			}
 			if dst, ok := ruleCfg["destination"].(map[string]interface{}); ok {
 				dstAddr, _ = dst["address"].(string)
+				if grp, ok := dst["group"].(map[string]interface{}); ok {
+					dstGroup, _ = grp["address-group"].(string)
+				}
 			}
 
 			rules[ruleID] = RuleInfo{
-				Action:      action,
-				Source:      srcAddr,
-				Destination: dstAddr,
-				Description: ruleDesc,
+				Action:           action,
+				Source:           srcAddr,
+				SourceGroup:      srcGroup,
+				Destination:      dstAddr,
+				DestinationGroup: dstGroup,
+				Description:      ruleDesc,
+				Disabled:         ruleDisabled,
 			}
 		}
 	}
@@ -395,6 +420,99 @@ func parsePolicyData(name string, data interface{}) PolicyInfo {
 		Name:          name,
 		DefaultAction: defaultAction,
 		Description:   desc,
+		Disabled:      policyDisabled,
 		Rules:         rules,
 	}
+}
+
+// DisablePolicy handles PUT /devices/{device_id}/firewall/policies/{policy}/disable.
+func (h *Handler) DisablePolicy(w http.ResponseWriter, r *http.Request) {
+	c, ok := h.getClient(w, r)
+	if !ok {
+		return
+	}
+	policy := mux.Vars(r)["policy"]
+	path := fmt.Sprintf("firewall ipv4 name %s disable", policy)
+	out, _, err := c.Conf.Set(r.Context(), path)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, "device communication error: "+err.Error())
+		return
+	}
+	if !out.Success {
+		writeError(w, http.StatusUnprocessableEntity, "device rejected operation: "+errMsg(out.Error))
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"disabled": true})
+}
+
+// EnablePolicy handles PUT /devices/{device_id}/firewall/policies/{policy}/enable.
+func (h *Handler) EnablePolicy(w http.ResponseWriter, r *http.Request) {
+	c, ok := h.getClient(w, r)
+	if !ok {
+		return
+	}
+	policy := mux.Vars(r)["policy"]
+	path := fmt.Sprintf("firewall ipv4 name %s disable", policy)
+	out, _, err := c.Conf.Delete(r.Context(), path)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, "device communication error: "+err.Error())
+		return
+	}
+	if !out.Success {
+		writeError(w, http.StatusUnprocessableEntity, "device rejected operation: "+errMsg(out.Error))
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"disabled": false})
+}
+
+// DisableRule handles PUT /devices/{device_id}/firewall/policies/{policy}/rules/{rule_id}/disable.
+func (h *Handler) DisableRule(w http.ResponseWriter, r *http.Request) {
+	c, ok := h.getClient(w, r)
+	if !ok {
+		return
+	}
+	vars := mux.Vars(r)
+	policy := vars["policy"]
+	ruleID, err := strconv.Atoi(vars["rule_id"])
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "rule_id must be an integer")
+		return
+	}
+	path := fmt.Sprintf("firewall ipv4 name %s rule %d disable", policy, ruleID)
+	out, _, err := c.Conf.Set(r.Context(), path)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, "device communication error: "+err.Error())
+		return
+	}
+	if !out.Success {
+		writeError(w, http.StatusUnprocessableEntity, "device rejected operation: "+errMsg(out.Error))
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"disabled": true})
+}
+
+// EnableRule handles PUT /devices/{device_id}/firewall/policies/{policy}/rules/{rule_id}/enable.
+func (h *Handler) EnableRule(w http.ResponseWriter, r *http.Request) {
+	c, ok := h.getClient(w, r)
+	if !ok {
+		return
+	}
+	vars := mux.Vars(r)
+	policy := vars["policy"]
+	ruleID, err := strconv.Atoi(vars["rule_id"])
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "rule_id must be an integer")
+		return
+	}
+	path := fmt.Sprintf("firewall ipv4 name %s rule %d disable", policy, ruleID)
+	out, _, err := c.Conf.Delete(r.Context(), path)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, "device communication error: "+err.Error())
+		return
+	}
+	if !out.Success {
+		writeError(w, http.StatusUnprocessableEntity, "device rejected operation: "+errMsg(out.Error))
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"disabled": false})
 }

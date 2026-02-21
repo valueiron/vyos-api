@@ -5,7 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/example/vyos-api/handlers"
+	"github.com/valueiron/vyos-api/handlers"
 )
 
 func TestListDevices_Empty(t *testing.T) {

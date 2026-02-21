@@ -8,7 +8,7 @@ A Go REST API proxy for one or more VyOS router devices. Translates simple CRUD 
 |-----------|--------|
 | Language | Go 1.24 |
 | Router | gorilla/mux |
-| VyOS SDK | github.com/ganawaj/go-vyos v0.1.0 |
+| VyOS client | Self-contained (no external VyOS SDK); see `vyos/` |
 | Runtime image | gcr.io/distroless/static-debian12:nonroot |
 | Port | 8082 |
 
@@ -132,13 +132,17 @@ The `VYOS_HOSTS` variable is read from the shell environment or a root-level `.e
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/devices/{device_id}/firewall/policies` | List all IPv4 named policies |
+| `GET` | `/devices/{device_id}/firewall/policies` | List all IPv4 named policies and configured base chains (`forward`, `input`, `output`) |
 | `POST` | `/devices/{device_id}/firewall/policies` | Create a policy |
 | `GET` | `/devices/{device_id}/firewall/policies/{policy}` | Get a policy including all its rules |
 | `PUT` | `/devices/{device_id}/firewall/policies/{policy}` | Update `default_action` and/or `description` |
 | `DELETE` | `/devices/{device_id}/firewall/policies/{policy}` | Delete a policy and all its rules |
+| `PUT` | `/devices/{device_id}/firewall/policies/{policy}/disable` | Set the VyOS `disable` flag on a policy (rules retained but skipped) |
+| `PUT` | `/devices/{device_id}/firewall/policies/{policy}/enable` | Remove the `disable` flag from a policy |
 | `POST` | `/devices/{device_id}/firewall/policies/{policy}/rules` | Add a rule to a policy |
 | `DELETE` | `/devices/{device_id}/firewall/policies/{policy}/rules/{rule_id}` | Delete a rule |
+| `PUT` | `/devices/{device_id}/firewall/policies/{policy}/rules/{rule_id}/disable` | Set the VyOS `disable` flag on a rule |
+| `PUT` | `/devices/{device_id}/firewall/policies/{policy}/rules/{rule_id}/enable` | Remove the `disable` flag from a rule |
 
 ### Firewall address groups
 
@@ -171,6 +175,8 @@ All errors return JSON with an `error` field:
 - **VLAN IDs**: VyOS stores 802.1Q subinterfaces under the `vif` key, not `vlan`. The API uses the `vlan_id` field but maps it to `vif` internally.
 - **TLS**: All device connections use `InsecureSkipVerify` to accommodate VyOS self-signed certificates.
 - **No persistence**: This service is stateless. All state lives on the VyOS device.
+- **Address groups in rules**: Use `source_group` / `destination_group` instead of `source` / `destination` to match by address-group name. The two are mutually exclusive per direction.
+- **Disabling**: Policies and individual rules can be disabled without deletion using the `/disable` and `/enable` sub-resource endpoints. The `disabled` boolean field is reflected in GET responses for both `PolicyInfo` and `RuleInfo`.
 
 # Unit tests (with Docker if go not installed)
 docker run --rm -v "$(pwd):/app" -w /app golang:1.24-alpine go test ./...

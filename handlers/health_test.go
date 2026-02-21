@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/example/vyos-api/handlers"
+	"github.com/valueiron/vyos-api/handlers"
 )
 
 func TestHealth_OK(t *testing.T) {

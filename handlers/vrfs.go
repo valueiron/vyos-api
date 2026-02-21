@@ -41,7 +41,7 @@ func (h *Handler) ListVRFs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !out.Success {
-		writeError(w, http.StatusUnprocessableEntity, "device rejected operation: "+out.Error)
+		writeError(w, http.StatusUnprocessableEntity, "device rejected operation: "+fmt.Sprint(out.Error))
 		return
 	}
 
@@ -90,7 +90,7 @@ func (h *Handler) CreateVRF(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !out.Success {
-		writeError(w, http.StatusUnprocessableEntity, "device rejected operation: "+out.Error)
+		writeError(w, http.StatusUnprocessableEntity, "device rejected operation: "+fmt.Sprint(out.Error))
 		return
 	}
 
@@ -159,7 +159,7 @@ func (h *Handler) UpdateVRF(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if !out.Success {
-			writeError(w, http.StatusUnprocessableEntity, "device rejected operation: "+out.Error)
+			writeError(w, http.StatusUnprocessableEntity, "device rejected operation: "+fmt.Sprint(out.Error))
 			return
 		}
 	}
@@ -172,7 +172,7 @@ func (h *Handler) UpdateVRF(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if !out.Success {
-			writeError(w, http.StatusUnprocessableEntity, "device rejected operation: "+out.Error)
+			writeError(w, http.StatusUnprocessableEntity, "device rejected operation: "+fmt.Sprint(out.Error))
 			return
 		}
 	}
@@ -209,7 +209,7 @@ func (h *Handler) DeleteVRF(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !out.Success {
-		writeError(w, http.StatusUnprocessableEntity, "device rejected operation: "+out.Error)
+		writeError(w, http.StatusUnprocessableEntity, "device rejected operation: "+fmt.Sprint(out.Error))
 		return
 	}
 
