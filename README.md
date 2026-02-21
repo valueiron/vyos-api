@@ -25,7 +25,8 @@ vyos-api/
 │   ├── vrfs.go               # /devices/{id}/vrfs CRUD
 │   ├── vlans.go              # /devices/{id}/vlans CRUD
 │   ├── firewall.go           # /devices/{id}/firewall/policies CRUD + /rules sub-resource
-│   └── addressgroups.go      # /devices/{id}/firewall/address-groups CRUD
+│   ├── addressgroups.go      # /devices/{id}/firewall/address-groups CRUD
+│   └── nat.go                # /devices/{id}/nat/{source|destination}/rules CRUD
 ├── openapi.json              # OpenAPI 3.0 specification
 ├── go.mod
 ├── Dockerfile                # Multi-stage: golang:1.24-alpine → distroless/static
@@ -154,6 +155,37 @@ The `VYOS_HOSTS` variable is read from the shell environment or a root-level `.e
 | `PUT` | `/devices/{device_id}/firewall/address-groups/{group}` | Full replacement of the address list |
 | `DELETE` | `/devices/{device_id}/firewall/address-groups/{group}` | Delete an address group |
 
+### NAT rules
+
+`{nat_type}` is either `source` (SNAT / masquerade) or `destination` (DNAT / port-forward).
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/devices/{device_id}/nat/{nat_type}/rules` | List all NAT rules of the given type. Returns `[]` when NAT is not yet configured. |
+| `POST` | `/devices/{device_id}/nat/{nat_type}/rules` | Create a NAT rule (`translation_address` required) |
+| `GET` | `/devices/{device_id}/nat/{nat_type}/rules/{rule_id}` | Get a single NAT rule |
+| `PUT` | `/devices/{device_id}/nat/{nat_type}/rules/{rule_id}` | Update a NAT rule (partial — omit unchanged fields) |
+| `DELETE` | `/devices/{device_id}/nat/{nat_type}/rules/{rule_id}` | Delete a NAT rule |
+
+#### Source NAT fields
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `rule_id` | Yes (create) | Rule number (positive integer, multiples of 10 by convention) |
+| `translation_address` | Yes | Translated source address or `masquerade` for dynamic SNAT |
+| `outbound_interface` | No | Outbound interface name (e.g. `eth0`) |
+| `source_address` | No | Match source IP/CIDR |
+| `source_port` | No | Match source port or range (e.g. `1024-65535`) |
+| `destination_address` | No | Match destination IP/CIDR |
+| `destination_port` | No | Match destination port |
+| `translation_port` | No | Translated port |
+| `protocol` | No | `tcp`, `udp`, `tcp_udp`, `icmp`, or `all` |
+| `description` | No | Label (no spaces) |
+
+#### Destination NAT fields
+
+Same fields as source NAT, with `inbound_interface` instead of `outbound_interface`.
+
 ## Error responses
 
 All errors return JSON with an `error` field:
@@ -177,6 +209,9 @@ All errors return JSON with an `error` field:
 - **No persistence**: This service is stateless. All state lives on the VyOS device.
 - **Address groups in rules**: Use `source_group` / `destination_group` instead of `source` / `destination` to match by address-group name. The two are mutually exclusive per direction.
 - **Disabling**: Policies and individual rules can be disabled without deletion using the `/disable` and `/enable` sub-resource endpoints. The `disabled` boolean field is reflected in GET responses for both `PolicyInfo` and `RuleInfo`.
+- **NAT not configured**: If no NAT rules of a given type exist on the device, VyOS returns HTTP 400 for the config path. The list endpoint silently converts this to an empty array `[]` rather than an error.
+- **SNAT masquerade**: Set `translation_address` to the literal string `masquerade` to use VyOS masquerade (dynamic source NAT). Any non-masquerade value is treated as a fixed IP/CIDR.
+- **NAT rule_id**: Like firewall rules, VyOS convention is multiples of 10 (`10`, `20`, …). Rules are evaluated in ascending order.
 
 # Unit tests (with Docker if go not installed)
 docker run --rm -v "$(pwd):/app" -w /app golang:1.24-alpine go test ./...
