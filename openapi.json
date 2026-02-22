@@ -2,8 +2,8 @@
   "openapi": "3.0.3",
   "info": {
     "title": "VyOS API",
-    "description": "REST proxy for one or more VyOS router devices. Exposes CRUD operations over interfaces, VRFs, VLANs, firewall policies, and firewall address groups. Each device is identified by the name supplied in the VYOS_HOSTS environment variable.",
-    "version": "0.1.0"
+    "description": "REST proxy for one or more VyOS router devices. Exposes CRUD operations over interfaces, VRFs, VLANs, firewall policies, firewall address groups, and NAT rules. Each device is identified by the name supplied in the VYOS_HOSTS environment variable.",
+    "version": "0.2.0"
   },
   "servers": [
     {
@@ -17,7 +17,8 @@
     { "name": "vrfs",           "description": "Virtual routing and forwarding instances" },
     { "name": "vlans",          "description": "802.1Q vif subinterfaces" },
     { "name": "firewall",       "description": "IPv4 firewall policies and rules" },
-    { "name": "address-groups", "description": "Firewall address group objects" }
+    { "name": "address-groups", "description": "Firewall address group objects" },
+    { "name": "nat",            "description": "Source NAT (SNAT/masquerade) and destination NAT (DNAT/port-forward) rules" }
   ],
   "paths": {
 
@@ -883,6 +884,154 @@
           "502": { "$ref": "#/components/responses/DeviceError" }
         }
       }
+    },
+
+    "/devices/{device_id}/nat/{nat_type}/rules": {
+      "parameters": [
+        { "$ref": "#/components/parameters/device_id" },
+        { "$ref": "#/components/parameters/nat_type" }
+      ],
+      "get": {
+        "tags": ["nat"],
+        "summary": "List NAT rules",
+        "description": "Returns all rules for the given NAT type. Returns an empty array `[]` when no rules are configured (VyOS would otherwise return 400 for an unconfigured path).",
+        "operationId": "listNATRules",
+        "responses": {
+          "200": {
+            "description": "NAT rule list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/NATRuleInfo" }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/DeviceNotFound" },
+          "502": { "$ref": "#/components/responses/DeviceError" }
+        }
+      },
+      "post": {
+        "tags": ["nat"],
+        "summary": "Create a NAT rule",
+        "description": "`translation_address` is required. Use `masquerade` as the value for dynamic source NAT. All other fields are optional.",
+        "operationId": "createNATRule",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateNATRuleRequest" },
+              "examples": {
+                "snat-masquerade": {
+                  "summary": "Source NAT — masquerade LAN",
+                  "value": {
+                    "rule_id": 10,
+                    "outbound_interface": "eth0",
+                    "source_address": "192.168.1.0/24",
+                    "translation_address": "masquerade",
+                    "description": "lan-masquerade"
+                  }
+                },
+                "dnat-port-forward": {
+                  "summary": "Destination NAT — port-forward HTTP",
+                  "value": {
+                    "rule_id": 20,
+                    "protocol": "tcp",
+                    "inbound_interface": "eth0",
+                    "destination_port": "80",
+                    "translation_address": "192.168.1.100",
+                    "translation_port": "8080",
+                    "description": "port-forward-http"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "NAT rule created",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/NATRuleInfo" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/DeviceNotFound" },
+          "422": { "$ref": "#/components/responses/DeviceRejected" },
+          "502": { "$ref": "#/components/responses/DeviceError" }
+        }
+      }
+    },
+
+    "/devices/{device_id}/nat/{nat_type}/rules/{rule_id}": {
+      "parameters": [
+        { "$ref": "#/components/parameters/device_id" },
+        { "$ref": "#/components/parameters/nat_type" },
+        { "$ref": "#/components/parameters/nat_rule_id" }
+      ],
+      "get": {
+        "tags": ["nat"],
+        "summary": "Get a NAT rule",
+        "operationId": "getNATRule",
+        "responses": {
+          "200": {
+            "description": "NAT rule details",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/NATRuleInfo" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "502": { "$ref": "#/components/responses/DeviceError" }
+        }
+      },
+      "put": {
+        "tags": ["nat"],
+        "summary": "Update a NAT rule",
+        "description": "Updates one or more fields on an existing rule. Omit fields that should not change. Fields not supplied are left as-is on the device.",
+        "operationId": "updateNATRule",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateNATRuleRequest" },
+              "example": { "translation_address": "192.168.1.200", "description": "updated-target" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "NAT rule updated",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/NATRuleInfo" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/DeviceNotFound" },
+          "422": { "$ref": "#/components/responses/DeviceRejected" },
+          "502": { "$ref": "#/components/responses/DeviceError" }
+        }
+      },
+      "delete": {
+        "tags": ["nat"],
+        "summary": "Delete a NAT rule",
+        "operationId": "deleteNATRule",
+        "responses": {
+          "204": { "description": "NAT rule deleted" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/DeviceNotFound" },
+          "422": { "$ref": "#/components/responses/DeviceRejected" },
+          "502": { "$ref": "#/components/responses/DeviceError" }
+        }
+      }
     }
 
   },
@@ -949,6 +1098,20 @@
           "default": "ethernet",
           "enum": ["ethernet", "loopback", "bonding", "bridge", "wireguard", "dummy"]
         }
+      },
+      "nat_type": {
+        "name": "nat_type",
+        "in": "path",
+        "required": true,
+        "description": "NAT direction: `source` (SNAT/masquerade) or `destination` (DNAT/port-forward)",
+        "schema": { "type": "string", "enum": ["source", "destination"], "example": "source" }
+      },
+      "nat_rule_id": {
+        "name": "rule_id",
+        "in": "path",
+        "required": true,
+        "description": "NAT rule number (positive integer, VyOS convention: multiples of 10)",
+        "schema": { "type": "integer", "minimum": 1, "example": 10 }
       }
     },
 
@@ -1187,6 +1350,61 @@
         "properties": {
           "addresses":   { "type": "array", "items": { "type": "string" }, "description": "Complete replacement address list", "example": ["192.168.0.0/24"] },
           "description": { "type": "string", "example": "updated-description" }
+        }
+      },
+
+      "NATRuleInfo": {
+        "type": "object",
+        "required": ["rule_id", "type"],
+        "properties": {
+          "rule_id":             { "type": "integer", "description": "Rule number", "example": 10 },
+          "type":                { "type": "string", "enum": ["source", "destination"], "description": "NAT direction", "example": "source" },
+          "description":         { "type": "string", "description": "Label (no spaces)", "example": "lan-masquerade" },
+          "outbound_interface":  { "type": "string", "description": "Outbound interface (source NAT only)", "example": "eth0" },
+          "inbound_interface":   { "type": "string", "description": "Inbound interface (destination NAT only)", "example": "eth0" },
+          "protocol":            { "type": "string", "enum": ["tcp", "udp", "tcp_udp", "icmp", "all"], "example": "tcp" },
+          "source_address":      { "type": "string", "description": "Match source IP/CIDR", "example": "192.168.1.0/24" },
+          "source_port":         { "type": "string", "description": "Match source port or range", "example": "1024-65535" },
+          "destination_address": { "type": "string", "description": "Match destination IP/CIDR", "example": "203.0.113.1" },
+          "destination_port":    { "type": "string", "description": "Match destination port or range", "example": "80" },
+          "translation_address": { "type": "string", "description": "Translated address or `masquerade`", "example": "masquerade" },
+          "translation_port":    { "type": "string", "description": "Translated port or range", "example": "8080" },
+          "disabled":            { "type": "boolean", "description": "True if the VyOS disable flag is set", "example": false }
+        }
+      },
+
+      "CreateNATRuleRequest": {
+        "type": "object",
+        "required": ["rule_id", "translation_address"],
+        "properties": {
+          "rule_id":             { "type": "integer", "minimum": 1, "description": "Rule number (multiples of 10 by convention)", "example": 10 },
+          "translation_address": { "type": "string", "description": "Translated address or `masquerade` (required)", "example": "masquerade" },
+          "outbound_interface":  { "type": "string", "description": "Outbound interface name (source NAT)", "example": "eth0" },
+          "inbound_interface":   { "type": "string", "description": "Inbound interface name (destination NAT)", "example": "eth0" },
+          "protocol":            { "type": "string", "enum": ["tcp", "udp", "tcp_udp", "icmp", "all"], "example": "tcp" },
+          "source_address":      { "type": "string", "example": "192.168.1.0/24" },
+          "source_port":         { "type": "string", "example": "1024-65535" },
+          "destination_address": { "type": "string", "example": "203.0.113.1" },
+          "destination_port":    { "type": "string", "example": "80" },
+          "translation_port":    { "type": "string", "example": "8080" },
+          "description":         { "type": "string", "example": "lan-masquerade" }
+        }
+      },
+
+      "UpdateNATRuleRequest": {
+        "type": "object",
+        "description": "Partial update — omit fields that should not change.",
+        "properties": {
+          "translation_address": { "type": "string", "example": "192.168.1.200" },
+          "translation_port":    { "type": "string", "example": "8080" },
+          "outbound_interface":  { "type": "string", "example": "eth1" },
+          "inbound_interface":   { "type": "string", "example": "eth1" },
+          "protocol":            { "type": "string", "enum": ["tcp", "udp", "tcp_udp", "icmp", "all"] },
+          "source_address":      { "type": "string", "example": "192.168.2.0/24" },
+          "source_port":         { "type": "string", "example": "443" },
+          "destination_address": { "type": "string", "example": "10.0.0.1" },
+          "destination_port":    { "type": "string", "example": "443" },
+          "description":         { "type": "string", "example": "updated-rule" }
         }
       }
 

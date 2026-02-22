@@ -72,6 +72,13 @@ func main() {
 	r.HandleFunc("/devices/{device_id}/firewall/policies/{policy}/rules/{rule_id}/disable", h.DisableRule).Methods(http.MethodPut)
 	r.HandleFunc("/devices/{device_id}/firewall/policies/{policy}/rules/{rule_id}/enable", h.EnableRule).Methods(http.MethodPut)
 
+	// NAT rules (source and destination).
+	r.HandleFunc("/devices/{device_id}/nat/{nat_type}/rules", h.ListNATRules).Methods(http.MethodGet)
+	r.HandleFunc("/devices/{device_id}/nat/{nat_type}/rules", h.CreateNATRule).Methods(http.MethodPost)
+	r.HandleFunc("/devices/{device_id}/nat/{nat_type}/rules/{rule_id}", h.GetNATRule).Methods(http.MethodGet)
+	r.HandleFunc("/devices/{device_id}/nat/{nat_type}/rules/{rule_id}", h.UpdateNATRule).Methods(http.MethodPut)
+	r.HandleFunc("/devices/{device_id}/nat/{nat_type}/rules/{rule_id}", h.DeleteNATRule).Methods(http.MethodDelete)
+
 	// Firewall address groups.
 	r.HandleFunc("/devices/{device_id}/firewall/address-groups", h.ListAddressGroups).Methods(http.MethodGet)
 	r.HandleFunc("/devices/{device_id}/firewall/address-groups", h.CreateAddressGroup).Methods(http.MethodPost)
