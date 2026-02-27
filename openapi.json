@@ -18,7 +18,9 @@
     { "name": "vlans",          "description": "802.1Q vif subinterfaces" },
     { "name": "firewall",       "description": "IPv4 firewall policies and rules" },
     { "name": "address-groups", "description": "Firewall address group objects" },
-    { "name": "nat",            "description": "Source NAT (SNAT/masquerade) and destination NAT (DNAT/port-forward) rules" }
+    { "name": "nat",            "description": "Source NAT (SNAT/masquerade) and destination NAT (DNAT/port-forward) rules" },
+    { "name": "routes",         "description": "IPv4 static routes (protocols static route)" },
+    { "name": "dhcp",           "description": "DHCP server shared-network instances" }
   ],
   "paths": {
 
@@ -1032,6 +1034,240 @@
           "502": { "$ref": "#/components/responses/DeviceError" }
         }
       }
+    },
+
+    "/devices/{device_id}/routes": {
+      "parameters": [
+        { "$ref": "#/components/parameters/device_id" }
+      ],
+      "get": {
+        "tags": ["routes"],
+        "summary": "List static routes",
+        "description": "Returns all IPv4 static routes configured under `protocols static route`.",
+        "operationId": "listRoutes",
+        "responses": {
+          "200": {
+            "description": "List of static routes",
+            "content": {
+              "application/json": {
+                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/RouteInfo" } },
+                "example": [{ "network": "0.0.0.0/0", "next_hop": "10.0.0.1", "description": "default-route" }]
+              }
+            }
+          },
+          "404": { "$ref": "#/components/responses/DeviceNotFound" },
+          "502": { "$ref": "#/components/responses/DeviceError" }
+        }
+      },
+      "post": {
+        "tags": ["routes"],
+        "summary": "Create a static route",
+        "operationId": "createRoute",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateRouteRequest" },
+              "example": { "network": "192.168.100.0/24", "next_hop": "10.0.0.1", "distance": "10", "description": "lab-subnet" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Route created",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/RouteInfo" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/DeviceNotFound" },
+          "422": { "$ref": "#/components/responses/DeviceRejected" },
+          "502": { "$ref": "#/components/responses/DeviceError" }
+        }
+      }
+    },
+
+    "/devices/{device_id}/routes/{prefix}/{mask}": {
+      "parameters": [
+        { "$ref": "#/components/parameters/device_id" },
+        { "$ref": "#/components/parameters/route_prefix" },
+        { "$ref": "#/components/parameters/route_mask" }
+      ],
+      "get": {
+        "tags": ["routes"],
+        "summary": "Get a static route",
+        "operationId": "getRoute",
+        "responses": {
+          "200": {
+            "description": "Route details",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/RouteInfo" }
+              }
+            }
+          },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "502": { "$ref": "#/components/responses/DeviceError" }
+        }
+      },
+      "put": {
+        "tags": ["routes"],
+        "summary": "Update a static route",
+        "operationId": "updateRoute",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateRouteRequest" },
+              "example": { "next_hop": "10.0.0.2", "distance": "20" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated route",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/RouteInfo" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/DeviceNotFound" },
+          "422": { "$ref": "#/components/responses/DeviceRejected" },
+          "502": { "$ref": "#/components/responses/DeviceError" }
+        }
+      },
+      "delete": {
+        "tags": ["routes"],
+        "summary": "Delete a static route",
+        "operationId": "deleteRoute",
+        "responses": {
+          "204": { "description": "Route deleted" },
+          "404": { "$ref": "#/components/responses/DeviceNotFound" },
+          "422": { "$ref": "#/components/responses/DeviceRejected" },
+          "502": { "$ref": "#/components/responses/DeviceError" }
+        }
+      }
+    },
+
+    "/devices/{device_id}/dhcp/servers": {
+      "parameters": [
+        { "$ref": "#/components/parameters/device_id" }
+      ],
+      "get": {
+        "tags": ["dhcp"],
+        "summary": "List DHCP servers",
+        "description": "Returns all DHCP shared-network instances configured under `service dhcp-server`.",
+        "operationId": "listDHCPServers",
+        "responses": {
+          "200": {
+            "description": "List of DHCP servers",
+            "content": {
+              "application/json": {
+                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/DHCPServerInfo" } }
+              }
+            }
+          },
+          "404": { "$ref": "#/components/responses/DeviceNotFound" },
+          "502": { "$ref": "#/components/responses/DeviceError" }
+        }
+      },
+      "post": {
+        "tags": ["dhcp"],
+        "summary": "Create a DHCP server",
+        "description": "Creates a new shared-network with one subnet.",
+        "operationId": "createDHCPServer",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateDHCPServerRequest" },
+              "example": { "name": "LAN", "subnet": "192.168.1.0/24", "default_router": "192.168.1.1", "dns_servers": ["8.8.8.8", "8.8.4.4"], "range_start": "192.168.1.100", "range_stop": "192.168.1.200", "lease": "86400" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "DHCP server created",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DHCPServerInfo" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/DeviceNotFound" },
+          "422": { "$ref": "#/components/responses/DeviceRejected" },
+          "502": { "$ref": "#/components/responses/DeviceError" }
+        }
+      }
+    },
+
+    "/devices/{device_id}/dhcp/servers/{name}": {
+      "parameters": [
+        { "$ref": "#/components/parameters/device_id" },
+        { "$ref": "#/components/parameters/dhcp_name" }
+      ],
+      "get": {
+        "tags": ["dhcp"],
+        "summary": "Get a DHCP server",
+        "operationId": "getDHCPServer",
+        "responses": {
+          "200": {
+            "description": "DHCP server details",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DHCPServerInfo" }
+              }
+            }
+          },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "502": { "$ref": "#/components/responses/DeviceError" }
+        }
+      },
+      "put": {
+        "tags": ["dhcp"],
+        "summary": "Update a DHCP server",
+        "description": "Updates configuration for a subnet within the shared-network.",
+        "operationId": "updateDHCPServer",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateDHCPServerRequest" },
+              "example": { "subnet": "192.168.1.0/24", "default_router": "192.168.1.254", "lease": "43200" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated DHCP server",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DHCPServerInfo" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/DeviceNotFound" },
+          "422": { "$ref": "#/components/responses/DeviceRejected" },
+          "502": { "$ref": "#/components/responses/DeviceError" }
+        }
+      },
+      "delete": {
+        "tags": ["dhcp"],
+        "summary": "Delete a DHCP server",
+        "operationId": "deleteDHCPServer",
+        "responses": {
+          "204": { "description": "DHCP server deleted" },
+          "404": { "$ref": "#/components/responses/DeviceNotFound" },
+          "422": { "$ref": "#/components/responses/DeviceRejected" },
+          "502": { "$ref": "#/components/responses/DeviceError" }
+        }
+      }
     }
 
   },
@@ -1112,6 +1348,27 @@
         "required": true,
         "description": "NAT rule number (positive integer, VyOS convention: multiples of 10)",
         "schema": { "type": "integer", "minimum": 1, "example": 10 }
+      },
+      "route_prefix": {
+        "name": "prefix",
+        "in": "path",
+        "required": true,
+        "description": "Network address portion of the route CIDR (e.g. `192.168.1.0`)",
+        "schema": { "type": "string", "example": "192.168.1.0" }
+      },
+      "route_mask": {
+        "name": "mask",
+        "in": "path",
+        "required": true,
+        "description": "Prefix length portion of the route CIDR (e.g. `24`)",
+        "schema": { "type": "string", "example": "24" }
+      },
+      "dhcp_name": {
+        "name": "name",
+        "in": "path",
+        "required": true,
+        "description": "DHCP shared-network name",
+        "schema": { "type": "string", "example": "LAN" }
       }
     },
 
@@ -1405,6 +1662,88 @@
           "destination_address": { "type": "string", "example": "10.0.0.1" },
           "destination_port":    { "type": "string", "example": "443" },
           "description":         { "type": "string", "example": "updated-rule" }
+        }
+      },
+
+      "RouteInfo": {
+        "type": "object",
+        "required": ["network", "next_hop"],
+        "properties": {
+          "network":     { "type": "string", "description": "Destination network in CIDR notation", "example": "192.168.100.0/24" },
+          "next_hop":    { "type": "string", "description": "Next-hop gateway address", "example": "10.0.0.1" },
+          "distance":    { "type": "string", "description": "Administrative distance (1–255)", "example": "10" },
+          "description": { "type": "string", "example": "lab-subnet" }
+        }
+      },
+
+      "CreateRouteRequest": {
+        "type": "object",
+        "required": ["network", "next_hop"],
+        "properties": {
+          "network":     { "type": "string", "description": "Destination network in CIDR notation", "example": "192.168.100.0/24" },
+          "next_hop":    { "type": "string", "description": "Next-hop gateway address", "example": "10.0.0.1" },
+          "distance":    { "type": "string", "description": "Administrative distance (1–255). Omit to use VyOS default (1).", "example": "10" },
+          "description": { "type": "string", "example": "lab-subnet" }
+        }
+      },
+
+      "UpdateRouteRequest": {
+        "type": "object",
+        "description": "Partial update — omit fields that should not change.",
+        "properties": {
+          "next_hop":    { "type": "string", "description": "Replacement next-hop gateway", "example": "10.0.0.2" },
+          "distance":    { "type": "string", "description": "Replacement administrative distance", "example": "20" },
+          "description": { "type": "string", "example": "updated-description" }
+        }
+      },
+
+      "DHCPSubnetInfo": {
+        "type": "object",
+        "required": ["subnet"],
+        "properties": {
+          "subnet":         { "type": "string", "description": "Subnet CIDR", "example": "192.168.1.0/24" },
+          "default_router": { "type": "string", "description": "Default gateway pushed to DHCP clients", "example": "192.168.1.1" },
+          "dns_servers":    { "type": "array", "items": { "type": "string" }, "example": ["8.8.8.8", "8.8.4.4"] },
+          "range_start":    { "type": "string", "description": "First IP in the DHCP pool", "example": "192.168.1.100" },
+          "range_stop":     { "type": "string", "description": "Last IP in the DHCP pool", "example": "192.168.1.200" },
+          "lease":          { "type": "string", "description": "Lease time in seconds", "example": "86400" }
+        }
+      },
+
+      "DHCPServerInfo": {
+        "type": "object",
+        "required": ["name", "subnets"],
+        "properties": {
+          "name":    { "type": "string", "description": "Shared-network name", "example": "LAN" },
+          "subnets": { "type": "array", "items": { "$ref": "#/components/schemas/DHCPSubnetInfo" } }
+        }
+      },
+
+      "CreateDHCPServerRequest": {
+        "type": "object",
+        "required": ["name", "subnet"],
+        "properties": {
+          "name":           { "type": "string", "description": "Shared-network name", "example": "LAN" },
+          "subnet":         { "type": "string", "description": "Subnet CIDR", "example": "192.168.1.0/24" },
+          "default_router": { "type": "string", "example": "192.168.1.1" },
+          "dns_servers":    { "type": "array", "items": { "type": "string" }, "example": ["8.8.8.8"] },
+          "range_start":    { "type": "string", "example": "192.168.1.100" },
+          "range_stop":     { "type": "string", "example": "192.168.1.200" },
+          "lease":          { "type": "string", "description": "Lease time in seconds", "example": "86400" }
+        }
+      },
+
+      "UpdateDHCPServerRequest": {
+        "type": "object",
+        "required": ["subnet"],
+        "description": "Subnet is required to identify which subnet to update. Other fields are optional.",
+        "properties": {
+          "subnet":         { "type": "string", "description": "Subnet CIDR to update (must already exist)", "example": "192.168.1.0/24" },
+          "default_router": { "type": "string", "example": "192.168.1.254" },
+          "dns_servers":    { "type": "array", "items": { "type": "string" }, "example": ["1.1.1.1"] },
+          "range_start":    { "type": "string", "example": "192.168.1.50" },
+          "range_stop":     { "type": "string", "example": "192.168.1.150" },
+          "lease":          { "type": "string", "example": "43200" }
         }
       }
 

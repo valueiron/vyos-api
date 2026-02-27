@@ -86,6 +86,21 @@ func main() {
 	r.HandleFunc("/devices/{device_id}/firewall/address-groups/{group}", h.UpdateAddressGroup).Methods(http.MethodPut)
 	r.HandleFunc("/devices/{device_id}/firewall/address-groups/{group}", h.DeleteAddressGroup).Methods(http.MethodDelete)
 
+	// Static routes (protocols static route <prefix>/<mask>).
+	// The network CIDR is split into {prefix} and {mask} path segments to avoid gorilla/mux ambiguity.
+	r.HandleFunc("/devices/{device_id}/routes", h.ListRoutes).Methods(http.MethodGet)
+	r.HandleFunc("/devices/{device_id}/routes", h.CreateRoute).Methods(http.MethodPost)
+	r.HandleFunc("/devices/{device_id}/routes/{prefix}/{mask}", h.GetRoute).Methods(http.MethodGet)
+	r.HandleFunc("/devices/{device_id}/routes/{prefix}/{mask}", h.UpdateRoute).Methods(http.MethodPut)
+	r.HandleFunc("/devices/{device_id}/routes/{prefix}/{mask}", h.DeleteRoute).Methods(http.MethodDelete)
+
+	// DHCP servers (service dhcp-server shared-network-name).
+	r.HandleFunc("/devices/{device_id}/dhcp/servers", h.ListDHCPServers).Methods(http.MethodGet)
+	r.HandleFunc("/devices/{device_id}/dhcp/servers", h.CreateDHCPServer).Methods(http.MethodPost)
+	r.HandleFunc("/devices/{device_id}/dhcp/servers/{name}", h.GetDHCPServer).Methods(http.MethodGet)
+	r.HandleFunc("/devices/{device_id}/dhcp/servers/{name}", h.UpdateDHCPServer).Methods(http.MethodPut)
+	r.HandleFunc("/devices/{device_id}/dhcp/servers/{name}", h.DeleteDHCPServer).Methods(http.MethodDelete)
+
 	addr := ":8082"
 	if port := os.Getenv("PORT"); port != "" {
 		addr = ":" + port
